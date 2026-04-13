@@ -1,0 +1,111 @@
+import React, { useState, useEffect } from 'react';
+import { FaEnvelope, FaLock } from 'react-icons/fa';
+import SocialSignUp from './SocialSignUp';
+import { useForm } from 'react-hook-form';
+import Spinner from 'react-bootstrap/Spinner';
+import { useNavigate } from 'react-router-dom';
+import { Toast } from 'react-bootstrap';
+import { useResetPasswordMutation, useUserLoginMutation } from '../../redux/api/authApi';
+import { message } from 'antd';
+import { useMessageEffect } from '../../utils/messageSideEffect';
+import { decodeToken } from '../../utils/jwt';
+
+const SignIn = ({ handleResponse }) => {
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
+    const [infoError, setInfoError] = useState('');
+    const [show, setShow] = useState(true);
+    const { register, handleSubmit, formState: { errors } } = useForm();
+    const navigate = useNavigate();
+    const [userLogin, { isLoading }] = useUserLoginMutation();
+    const [forgotEmail, setForgotEmail] = useState('');
+    const [resetPassword, { isError: resetIsError, isSuccess: resetIsSuccess, error: resetError, isLoading: resetIsLoading }] = useResetPasswordMutation();
+
+    useEffect(() => {
+        const t = setTimeout(() => setShow(false), 12000);
+        return () => clearTimeout(t);
+    }, []);
+
+    const onSubmit = async (formData) => {
+        setInfoError('');
+        try {
+            const result = await userLogin({ ...formData }).unwrap();
+            message.success('Successfully Logged in');
+            const payload = decodeToken(result.accessToken);
+            if (payload.role === 'admin') {
+                navigate('/admin/dashboard', { replace: true });
+            } else {
+                navigate('/dashboard', { replace: true });
+            }
+        } catch (err) {
+            const msg = err?.data?.message || 'Login failed';
+            message.error(msg);
+            setInfoError(typeof msg === 'string' ? msg : '');
+        }
+    };
+
+    const onHandleForgotPassword = async (e) => {
+        e.preventDefault();
+        resetPassword({ email: forgotEmail });
+        setForgotEmail('');
+        setShowForgotPassword(false);
+    };
+
+    useMessageEffect(resetIsLoading, resetIsSuccess, resetIsError, resetError, 'Successfully Reset Password, Please check your Email!!');
+
+    const handleShowForgotPassword = () => {
+        setShowForgotPassword(!showForgotPassword);
+    };
+
+    return (
+        <>
+            {showForgotPassword ? (
+                <form className="sign-in-form" onSubmit={onHandleForgotPassword}>
+                    <h2 className="title">Forgot Password</h2>
+                    <div>To Forgot Your Password Please Enter your email</div>
+                    <div className="input-field">
+                        <span className="fIcon"><FaEnvelope /></span>
+                        <input
+                            value={forgotEmail !== undefined && forgotEmail}
+                            onChange={(e) => setForgotEmail(e.target.value)}
+                            placeholder="Enter Your Email"
+                            type="email"
+                            required
+                        />
+                    </div>
+                    <div onClick={handleShowForgotPassword} className="text-bold" style={{ cursor: 'pointer', color: '#4C25F5' }}>
+                        Stil Remember Password ?
+                    </div>
+                    <button className="iBtn" type="submit" value="sign In">
+                        {resetIsLoading ? <Spinner animation="border" variant="info" /> : 'Submit'}
+                    </button>
+                </form>
+            ) : (
+                <form className="sign-in-form" onSubmit={handleSubmit(onSubmit)}>
+                    <h2 className="title">Sign In</h2>
+                    <p className="text-muted small mb-4">Sign in to your SevaCare India account</p>
+                    <div className="input-field">
+                        <span className="fIcon"><FaEnvelope /></span>
+                        <input {...register('email', { required: true })} placeholder="Enter Your Email" type="email" />
+                    </div>
+                    {errors.email && <span className="text-danger">This field is required</span>}
+                    <div className="input-field">
+                        <span className="fIcon"><FaLock /></span>
+                        <input {...register('password', { required: true })} type="password" placeholder="Enter Your Password" />
+                    </div>
+                    {errors.password && <span className="text-danger">This field is required</span>}
+                    {infoError && <p className="text-danger mt-2">{infoError}</p>}
+                    <div onClick={handleShowForgotPassword} className="text-bold mt-2" style={{ cursor: 'pointer', color: '#4C25F5' }}>
+                        Forgot Password?
+                    </div>
+                    <button className="iBtn mt-3" type="submit" value="sign In">
+                        {isLoading ? <Spinner animation="border" variant="info" /> : 'Log In'}
+                    </button>
+                    <p className="social-text">Or Sign in with social platforms</p>
+                    <SocialSignUp handleResponse={handleResponse} />
+                </form>
+            )}
+        </>
+    );
+};
+
+export default SignIn;
